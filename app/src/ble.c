@@ -269,7 +269,8 @@ static int ble_save_profile(void) {
 #if !IS_ENABLED(CONFIG_ZMK_BLE_FAST_SWITCHING)
 static void zmk_ble_disconnect_inactive_profiles() {
     for (int i = 0; i < ZMK_BLE_PROFILE_COUNT; i++) {
-        if (i != active_profile && bt_addr_le_cmp(&profiles[i].peer, BT_ADDR_LE_ANY)) {
+        // only disconnect profile 2
+        if (i == 2 && i != active_profile && bt_addr_le_cmp(&profiles[i].peer, BT_ADDR_LE_ANY)) {
             zmk_ble_prof_disconnect(i);
         }
     }
