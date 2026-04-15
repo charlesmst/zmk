@@ -110,6 +110,29 @@ config ZMK_HID_INDICATORS
       Enable HID indicators, used for detecting state of Caps/Scroll/Num Lock,
       Kata, and Compose.
 
+config ZMK_DESKHOP_SYNC_REPORT
+    bool "DeskHop sync HID feature report"
+    depends on ZMK_USB
+    help
+      Adds a custom HID feature report that can be used as a side-channel
+      sync signal from external software (e.g. DeskHop/host tools).
+
+config ZMK_DESKHOP_SYNC_REPORT_ID
+    hex "DeskHop sync report ID"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 0x7E
+    range 0x01 0xFF
+
+config ZMK_DESKHOP_SYNC_LAYER_A
+    int "Layer when DeskHop output is A"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 0
+
+config ZMK_DESKHOP_SYNC_LAYER_B
+    int "Layer when DeskHop output is B"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 1
+
 config ZMK_HID_SEPARATE_MOD_RELEASE_REPORT
     bool "Release Modifiers Separately"
     help

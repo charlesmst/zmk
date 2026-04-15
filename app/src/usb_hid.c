@@ -121,32 +121,65 @@ static int get_report_cb(const struct device *dev, struct usb_setup_packet *setu
 
 static int set_report_cb(const struct device *dev, struct usb_setup_packet *setup, int32_t *len,
                          uint8_t **data) {
-    switch (setup->wValue & HID_GET_REPORT_TYPE_MASK) {
+    const uint16_t report_type = setup->wValue & HID_GET_REPORT_TYPE_MASK;
+    const uint8_t report_id = setup->wValue & HID_GET_REPORT_ID_MASK;
+
+    switch (report_type) {
     case HID_REPORT_TYPE_FEATURE:
-        switch (setup->wValue & HID_GET_REPORT_ID_MASK) {
+        switch (report_id) {
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+        case ZMK_HID_REPORT_ID_DESKHOP_SYNC: {
+            if (*len != sizeof(struct zmk_hid_deskhop_sync_report)) {
+                LOG_ERR("DeskHop sync report malformed: length=%d", *len);
+                return -EINVAL;
+            }
+
+            const struct zmk_hid_deskhop_sync_report *report =
+                (const struct zmk_hid_deskhop_sync_report *)*data;
+
+            if (report->body.magic != 0xA5) {
+                LOG_WRN("DeskHop sync magic mismatch: 0x%02x", report->body.magic);
+                return -EINVAL;
+            }
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+            return 0;
+#else
+            const uint8_t target_layer = report->body.output == 0
+                                             ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_A
+                                             : CONFIG_ZMK_DESKHOP_SYNC_LAYER_B;
+
+            if (zmk_keymap_highest_layer_active() != target_layer) {
+                zmk_keymap_layer_to(target_layer);
+            }
+
+            LOG_INF("DeskHop sync feature output=%d -> layer=%d", report->body.output,
+                    target_layer);
+            return 0;
+#endif
+        }
+#endif
 #if IS_ENABLED(CONFIG_ZMK_POINTING_SMOOTH_SCROLLING)
         case ZMK_HID_REPORT_ID_MOUSE:
             if (*len != sizeof(struct zmk_hid_mouse_resolution_feature_report)) {
                 return -EINVAL;
             }
 
-            struct zmk_hid_mouse_resolution_feature_report *report =
+            struct zmk_hid_mouse_resolution_feature_report *mouse_report =
                 (struct zmk_hid_mouse_resolution_feature_report *)*data;
             struct zmk_endpoint_instance endpoint = {
                 .transport = ZMK_TRANSPORT_USB,
             };
 
-            zmk_pointing_resolution_multipliers_process_report(&report->body, endpoint);
-
-            break;
+            zmk_pointing_resolution_multipliers_process_report(&mouse_report->body, endpoint);
+            return 0;
 #endif // IS_ENABLED(CONFIG_ZMK_POINTING_SMOOTH_SCROLLING)
         default:
             return -ENOTSUP;
         }
-        break;
 
     case HID_REPORT_TYPE_OUTPUT:
-        switch (setup->wValue & HID_GET_REPORT_ID_MASK) {
+        switch (report_id) {
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
         case ZMK_HID_REPORT_ID_LEDS:
             if (*len != sizeof(struct zmk_hid_led_report)) {
@@ -162,13 +195,13 @@ static int set_report_cb(const struct device *dev, struct usb_setup_packet *setu
             break;
 #endif // IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
         default:
-            LOG_ERR("Invalid report ID %d requested", setup->wValue & HID_GET_REPORT_ID_MASK);
+            LOG_ERR("Invalid report ID %d requested", report_id);
             return -EINVAL;
         }
         break;
+
     default:
-        LOG_ERR("Unsupported report type %d requested",
-                (setup->wValue & HID_GET_REPORT_TYPE_MASK) >> 8);
+        LOG_ERR("Unsupported report type %d requested", report_type >> 8);
         return -ENOTSUP;
     }
 

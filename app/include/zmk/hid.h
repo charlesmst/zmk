@@ -101,6 +101,10 @@
 
 #define HID_USAGE16_SINGLE(a) HID_USAGE16((a & 0xFF), ((a >> 8) & 0xFF))
 
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+#define ZMK_HID_REPORT_ID_DESKHOP_SYNC CONFIG_ZMK_DESKHOP_SYNC_REPORT_ID
+#endif
+
 static const uint8_t zmk_hid_report_desc[] = {
     HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
     HID_USAGE(HID_USAGE_GD_KEYBOARD),
@@ -136,6 +140,19 @@ static const uint8_t zmk_hid_report_desc[] = {
     HID_OUTPUT(ZMK_HID_MAIN_VAL_CONST | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
 
 #endif // IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
+
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
+    HID_USAGE(HID_USAGE_GD_KEYBOARD),
+    HID_REPORT_ID(ZMK_HID_REPORT_ID_DESKHOP_SYNC),
+    HID_LOGICAL_MIN8(0x00),
+    HID_LOGICAL_MAX8(0xFF),
+    HID_REPORT_SIZE(0x08),
+    HID_REPORT_COUNT(0x02),
+    HID_FEATURE(ZMK_HID_MAIN_VAL_DATA | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
+
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
 
     HID_USAGE_PAGE(HID_USAGE_KEY),
 
@@ -298,6 +315,19 @@ struct zmk_hid_led_report {
     struct zmk_hid_led_report_body body;
 } __packed;
 
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+
+struct zmk_hid_deskhop_sync_report_body {
+    uint8_t magic;
+    uint8_t output;
+} __packed;
+
+struct zmk_hid_deskhop_sync_report {
+    uint8_t report_id;
+    struct zmk_hid_deskhop_sync_report_body body;
+} __packed;
+
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
 struct zmk_hid_consumer_report_body {
 #if IS_ENABLED(CONFIG_ZMK_HID_CONSUMER_REPORT_USAGES_BASIC)
     uint8_t keys[CONFIG_ZMK_HID_CONSUMER_REPORT_SIZE];
