@@ -88,13 +88,56 @@ static int get_report_cb(const struct device *dev, struct usb_setup_packet *setu
 
 static int set_report_cb(const struct device *dev, struct usb_setup_packet *setup, int32_t *len,
                          uint8_t **data) {
-    if ((setup->wValue & HID_GET_REPORT_TYPE_MASK) != HID_REPORT_TYPE_OUTPUT) {
-        LOG_ERR("Unsupported report type %d requested",
-                (setup->wValue & HID_GET_REPORT_TYPE_MASK) >> 8);
+    const uint16_t report_type = setup->wValue & HID_GET_REPORT_TYPE_MASK;
+    const uint8_t report_id = setup->wValue & HID_GET_REPORT_ID_MASK;
+
+    if (report_type != HID_REPORT_TYPE_OUTPUT
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+        && report_type != HID_REPORT_TYPE_FEATURE
+#endif
+    ) {
+        LOG_ERR("Unsupported report type %d requested", report_type >> 8);
         return -ENOTSUP;
     }
 
-    switch (setup->wValue & HID_GET_REPORT_ID_MASK) {
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+    if (report_type == HID_REPORT_TYPE_FEATURE && report_id == ZMK_HID_REPORT_ID_DESKHOP_SYNC) {
+        if (*len != sizeof(struct zmk_hid_deskhop_sync_report)) {
+            LOG_ERR("DeskHop sync report malformed: length=%d", *len);
+            return -EINVAL;
+        }
+
+        const struct zmk_hid_deskhop_sync_report *report =
+            (const struct zmk_hid_deskhop_sync_report *)*data;
+
+        if (report->body.magic != 0xA5) {
+            LOG_WRN("DeskHop sync magic mismatch: 0x%02x", report->body.magic);
+            return -EINVAL;
+        }
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+        return 0;
+#else
+        const uint8_t target_layer = report->body.output == 0
+                                         ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_A
+                                         : CONFIG_ZMK_DESKHOP_SYNC_LAYER_B;
+
+        if (zmk_keymap_highest_layer_active() != target_layer) {
+            zmk_keymap_layer_to(target_layer);
+        }
+
+        LOG_INF("DeskHop sync feature output=%d -> layer=%d", report->body.output, target_layer);
+        return 0;
+#endif
+    }
+#endif
+
+    if (report_type != HID_REPORT_TYPE_OUTPUT) {
+        LOG_ERR("Unsupported report type %d requested", report_type >> 8);
+        return -ENOTSUP;
+    }
+
+    switch (report_id) {
 #if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
     case ZMK_HID_REPORT_ID_LEDS:
         if (*len != sizeof(struct zmk_hid_led_report)) {
