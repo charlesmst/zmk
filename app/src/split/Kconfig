@@ -24,6 +24,14 @@ config ZMK_SPLIT_WIRED
     select RING_BUFFER
     select CRC
 
+config ZMK_SPLIT_ESB
+    bool "ESB Split"
+    default n
+    depends on SOC_FAMILY_NRF
+    select ESB
+    help
+      Enable a low-latency Nordic Enhanced ShockBurst split transport.
+
 config ZMK_SPLIT_PERIPHERAL_HID_INDICATORS
     bool "Peripheral HID Indicators"
     depends on ZMK_HID_INDICATORS
@@ -34,3 +42,4 @@ endif # ZMK_SPLIT
 
 rsource "bluetooth/Kconfig"
 rsource "wired/Kconfig"
+rsource "esb/Kconfig"

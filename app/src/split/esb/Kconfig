@@ -1,0 +1,99 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+if ZMK_SPLIT_ESB
+
+config ZMK_SPLIT_ESB_PRIORITY
+    int "ESB split transport priority"
+    default 0
+    help
+      Lower values are preferred by the split transport selector.
+
+config ZMK_SPLIT_ESB_CENTRAL_PERIPHERALS
+    int "ESB split peripheral count"
+    default 2
+    range 1 8
+
+config ZMK_SPLIT_ESB_SOURCE_ID
+    int "ESB source ID for this peripheral"
+    default 0
+    range 0 7
+    depends on !ZMK_SPLIT_ROLE_CENTRAL
+
+config ZMK_SPLIT_ESB_RF_CHANNEL
+    int "ESB RF channel"
+    default 40
+    range 2 80
+
+config ZMK_SPLIT_ESB_POLL_INTERVAL_MS
+    int "Peripheral command poll interval"
+    default 8
+    range 1 1000
+    depends on !ZMK_SPLIT_ROLE_CENTRAL
+    help
+      Peripheral heartbeat interval used to receive central commands in ACK payloads.
+
+config ZMK_SPLIT_ESB_CONNECTION_TIMEOUT_MS
+    int "Central peripheral presence timeout"
+    default 1000
+
+config ZMK_SPLIT_ESB_EVENT_QUEUE_SIZE
+    int "ESB split event queue size"
+    default 16
+
+config ZMK_SPLIT_ESB_COMMAND_QUEUE_SIZE
+    int "ESB split command queue size"
+    default 8
+
+config ZMK_SPLIT_ESB_PACKET_DATA_SIZE
+    int "ESB split packet data size"
+    default 64
+    range 16 240
+
+config ESB
+    bool
+    select NRFX_PPI if HAS_HW_NRF_PPI
+    select NRFX_DPPI if HAS_HW_NRF_DPPIC
+    select NRFX_TIMER2
+
+config ESB_MAX_PAYLOAD_LENGTH
+    int
+    default ZMK_SPLIT_ESB_PACKET_DATA_SIZE
+
+config ESB_TX_FIFO_SIZE
+    int
+    default 8
+
+config ESB_RX_FIFO_SIZE
+    int
+    default 8
+
+config ESB_PIPE_COUNT
+    int
+    default 8
+
+config ESB_RADIO_IRQ_PRIORITY
+    int
+    default 1
+
+config ESB_EVENT_IRQ_PRIORITY
+    int
+    default 2
+
+config ESB_SYS_TIMER_INSTANCE
+    int
+    default 2
+
+config ESB_DYNAMIC_INTERRUPTS
+    bool
+    default n
+
+config ESB_NEVER_DISABLE_TX
+    bool
+    default n
+
+module=ESB
+module-str=ESB
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endif
