@@ -66,6 +66,11 @@ enum zmk_split_transport_central_command_type {
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_INVOKE_BEHAVIOR,
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_PHYSICAL_LAYOUT,
     ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SET_HID_INDICATORS,
+    /* Broadcast: tells all peripherals the current USB/BLE transport so they can
+     * adjust hardware sensor rates. Processed by every peripheral with NO source
+     * check (like POLL_EVENTS). Carried as an idempotent shared-state value, so
+     * duplicate deliveries are harmless and missed deliveries self-heal. */
+    ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_TRANSPORT_CHANGED,
 } __packed;
 
 struct zmk_split_transport_central_command {
@@ -87,5 +92,9 @@ struct zmk_split_transport_central_command {
         struct {
             zmk_hid_indicators_t indicators;
         } set_hid_indicators;
+
+        struct {
+            uint8_t transport; /* enum zmk_transport: 0=USB, 1=BLE */
+        } set_transport;
     } data;
 } __packed;

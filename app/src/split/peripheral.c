@@ -16,6 +16,7 @@
 #include <zmk/events/position_state_changed.h>
 #include <zmk/events/sensor_event.h>
 #include <zmk/events/battery_state_changed.h>
+#include <zmk/events/peripheral_transport_changed.h>
 
 #include <zephyr/init.h>
 #include <zephyr/logging/log.h>
@@ -50,6 +51,14 @@ int zmk_split_transport_peripheral_command_handler(
         if (err) {
             LOG_ERR("Failed to invoke behavior %s: %d", binding.behavior_dev, err);
         }
+        break;
+    }
+    case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_TRANSPORT_CHANGED: {
+        LOG_DBG("transport_changed -> %d", cmd.data.set_transport.transport);
+        raise_zmk_peripheral_transport_changed((struct zmk_peripheral_transport_changed){
+            .transport = cmd.data.set_transport.transport,
+        });
+        break;
     }
     default:
         LOG_WRN("Unhandled command type %d", cmd.type);
