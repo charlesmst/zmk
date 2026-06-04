@@ -91,16 +91,14 @@ static int zmk_battery_update(const struct device *battery) {
 #error "Not a supported reporting fetch mode"
 #endif
 
-    if (last_state_of_charge != state_of_charge.val1) {
-        last_state_of_charge = state_of_charge.val1;
+    last_state_of_charge = state_of_charge.val1;
 
-        rc = raise_zmk_battery_state_changed(
-            (struct zmk_battery_state_changed){.state_of_charge = last_state_of_charge});
+    rc = raise_zmk_battery_state_changed(
+        (struct zmk_battery_state_changed){.state_of_charge = last_state_of_charge});
 
-        if (rc != 0) {
-            LOG_ERR("Failed to raise battery state changed event: %d", rc);
-            return rc;
-        }
+    if (rc != 0) {
+        LOG_ERR("Failed to raise battery state changed event: %d", rc);
+        return rc;
     }
 
 #if IS_ENABLED(CONFIG_BT_BAS)

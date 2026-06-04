@@ -38,10 +38,11 @@ static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
     case OFF:
         return raise_zmk_keycode_state_changed_from_encoded(binding->param1, false,
                                                             event.timestamp);
-    case FLIP:
+    case FLIP: {
         bool pressed = zmk_hid_is_pressed(binding->param1);
         return raise_zmk_keycode_state_changed_from_encoded(binding->param1, !pressed,
                                                             event.timestamp);
+    }
     default:
         return -ENOTSUP;
     };
