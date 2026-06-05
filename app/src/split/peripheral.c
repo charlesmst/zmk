@@ -54,7 +54,7 @@ int zmk_split_transport_peripheral_command_handler(
         break;
     }
     case ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_TRANSPORT_CHANGED: {
-        LOG_WRN("PERIPH raising transport_changed -> %d", cmd.data.set_transport.transport);
+        LOG_DBG("transport_changed -> %d", cmd.data.set_transport.transport);
         raise_zmk_peripheral_transport_changed((struct zmk_peripheral_transport_changed){
             .transport = cmd.data.set_transport.transport,
         });
