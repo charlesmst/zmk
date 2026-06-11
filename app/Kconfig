@@ -156,6 +156,30 @@ config USB_HID_POLL_INTERVAL_MS
 
 endif # ZMK_USB
 
+config ZMK_DESKHOP_SYNC_REPORT
+    bool "DeskHop sync HID feature report"
+    depends on ZMK_USB
+    help
+      Adds a vendor-defined HID application collection (usage page 0xFF00)
+      to the existing keyboard interface so DeskHop hardware and host tools
+      can signal the active output and ZMK will switch layers accordingly.
+
+config ZMK_DESKHOP_SYNC_REPORT_ID
+    hex "DeskHop sync report ID"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 0x7E
+    range 0x01 0xFF
+
+config ZMK_DESKHOP_SYNC_LAYER_A
+    int "Layer when DeskHop output is A (0)"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 0
+
+config ZMK_DESKHOP_SYNC_LAYER_B
+    int "Layer when DeskHop output is B (1)"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 1
+
 menuconfig ZMK_BLE
     bool "BLE (HID over GATT)"
     select BT

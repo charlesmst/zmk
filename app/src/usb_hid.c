@@ -140,6 +140,32 @@ static int set_report_cb(const struct device *dev, struct usb_setup_packet *setu
 
             break;
 #endif // IS_ENABLED(CONFIG_ZMK_POINTING_SMOOTH_SCROLLING)
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+        case ZMK_HID_REPORT_ID_DESKHOP_SYNC: {
+            if (*len != sizeof(struct zmk_hid_deskhop_sync_report)) {
+                LOG_ERR("DeskHop sync report malformed: length=%d", *len);
+                return -EINVAL;
+            }
+            const struct zmk_hid_deskhop_sync_report *dh =
+                (const struct zmk_hid_deskhop_sync_report *)*data;
+            if (dh->body.magic != 0xA5) {
+                LOG_WRN("DeskHop sync magic mismatch: 0x%02x", dh->body.magic);
+                return -EINVAL;
+            }
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+            break;
+#else
+            const uint8_t target_layer =
+                dh->body.output == 0 ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_A
+                                     : CONFIG_ZMK_DESKHOP_SYNC_LAYER_B;
+            if (zmk_keymap_highest_layer_active() != target_layer) {
+                zmk_keymap_layer_to(target_layer, false);
+            }
+            LOG_INF("DeskHop sync output=%d -> layer=%d", dh->body.output, target_layer);
+            break;
+#endif
+        }
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
         default:
             return -ENOTSUP;
         }

@@ -76,6 +76,9 @@
 #define ZMK_HID_REPORT_ID_LEDS 0x01
 #define ZMK_HID_REPORT_ID_CONSUMER 0x02
 #define ZMK_HID_REPORT_ID_MOUSE 0x03
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+#define ZMK_HID_REPORT_ID_DESKHOP_SYNC CONFIG_ZMK_DESKHOP_SYNC_REPORT_ID
+#endif
 
 #ifndef HID_ITEM_TAG_PUSH
 #define HID_ITEM_TAG_PUSH 0xA
@@ -160,6 +163,26 @@ static const uint8_t zmk_hid_report_desc[] = {
 #endif
 
     HID_END_COLLECTION,
+
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+    /* Vendor-defined application collection (usage page 0xFF00) placed between
+     * the keyboard and consumer collections.  Raw bytes are required for the
+     * 2-byte usage-page item because HID_USAGE_PAGE only encodes 1 byte.
+     * DeskHop hardware and host tools scan for 0x06 0x00 0xFF + report-ID 0x7E
+     * to auto-detect this keyboard as a sync target. */
+    0x06, 0x00, 0xFF,
+    0x09, 0x01,
+    HID_COLLECTION(HID_COLLECTION_APPLICATION),
+    HID_REPORT_ID(ZMK_HID_REPORT_ID_DESKHOP_SYNC),
+    HID_USAGE(0x01),
+    HID_LOGICAL_MIN8(0x00),
+    HID_LOGICAL_MAX8(0xFF),
+    HID_REPORT_SIZE(0x08),
+    HID_REPORT_COUNT(0x02),
+    HID_FEATURE(ZMK_HID_MAIN_VAL_DATA | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
+    HID_END_COLLECTION,
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+
     HID_USAGE_PAGE(HID_USAGE_CONSUMER),
     HID_USAGE(HID_USAGE_CONSUMER_CONSUMER_CONTROL),
     HID_COLLECTION(HID_COLLECTION_APPLICATION),
@@ -390,3 +413,15 @@ zmk_hid_boot_report_t *zmk_hid_get_boot_report();
 #if IS_ENABLED(CONFIG_ZMK_POINTING)
 struct zmk_hid_mouse_report *zmk_hid_get_mouse_report();
 #endif // IS_ENABLED(CONFIG_ZMK_POINTING)
+
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+struct zmk_hid_deskhop_sync_report_body {
+    uint8_t magic;
+    uint8_t output;
+} __packed;
+
+struct zmk_hid_deskhop_sync_report {
+    uint8_t report_id;
+    struct zmk_hid_deskhop_sync_report_body body;
+} __packed;
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
