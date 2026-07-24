@@ -155,12 +155,17 @@ static int set_report_cb(const struct device *dev, struct usb_setup_packet *setu
 #if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
             break;
 #else
+            // DeskHop only ever selects between two mutually-exclusive base
+            // layers. Flip just those two instead of zmk_keymap_layer_to(),
+            // which tears down the whole stack and would drop any momentary
+            // layer the user is holding (mouse/scroll/snipe) mid-switch.
+            const bool want_b = dh->body.output != 0;
             const uint8_t target_layer =
-                dh->body.output == 0 ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_A
-                                     : CONFIG_ZMK_DESKHOP_SYNC_LAYER_B;
-            if (zmk_keymap_highest_layer_active() != target_layer) {
-                zmk_keymap_layer_to(target_layer, false);
-            }
+                want_b ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_B : CONFIG_ZMK_DESKHOP_SYNC_LAYER_A;
+            const uint8_t other_layer =
+                want_b ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_A : CONFIG_ZMK_DESKHOP_SYNC_LAYER_B;
+            zmk_keymap_layer_deactivate(other_layer, false);
+            zmk_keymap_layer_activate(target_layer, false);
             LOG_INF("DeskHop sync output=%d -> layer=%d", dh->body.output, target_layer);
             break;
 #endif
