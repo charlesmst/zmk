@@ -155,16 +155,29 @@ static int set_report_cb(const struct device *dev, struct usb_setup_packet *setu
 #if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
             break;
 #else
-            // DeskHop only ever selects between two mutually-exclusive base
-            // layers. Flip just those two instead of zmk_keymap_layer_to(),
-            // which tears down the whole stack and would drop any momentary
-            // layer the user is holding (mouse/scroll/snipe) mid-switch.
+            // Clear every base layer except the one being switched to, then
+            // activate it. Not zmk_keymap_layer_to(): that tears down the
+            // whole stack and would drop any momentary layer the user is
+            // holding (mouse/scroll/snipe) mid-switch. Layers outside the
+            // base mask are deliberately left alone for that reason.
+            //
+            // Flipping only LAYER_A/LAYER_B is not enough: key resolution
+            // walks layers from the highest index down, so any other base
+            // layer that is still on -- a gaming layer above both of them --
+            // shadows the target and the switch appears to do nothing.
+            //
+            // The deactivate is forcing (locking = true) because &to and &tog
+            // both set the lock bit, and a non-forcing disable refuses to turn
+            // a locked layer off.
             const bool want_b = dh->body.output != 0;
             const uint8_t target_layer =
                 want_b ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_B : CONFIG_ZMK_DESKHOP_SYNC_LAYER_A;
-            const uint8_t other_layer =
-                want_b ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_A : CONFIG_ZMK_DESKHOP_SYNC_LAYER_B;
-            zmk_keymap_layer_deactivate(other_layer, false);
+            for (uint8_t layer = 0; layer < ZMK_KEYMAP_LAYERS_LEN; layer++) {
+                if (layer != target_layer &&
+                    (CONFIG_ZMK_DESKHOP_SYNC_BASE_LAYER_MASK & BIT(layer))) {
+                    zmk_keymap_layer_deactivate(layer, true);
+                }
+            }
             zmk_keymap_layer_activate(target_layer, false);
             LOG_INF("DeskHop sync output=%d -> layer=%d", dh->body.output, target_layer);
             break;

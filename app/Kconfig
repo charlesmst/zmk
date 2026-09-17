@@ -180,6 +180,21 @@ config ZMK_DESKHOP_SYNC_LAYER_B
     depends on ZMK_DESKHOP_SYNC_REPORT
     default 1
 
+config ZMK_DESKHOP_SYNC_BASE_LAYER_MASK
+    hex "Bitmask of base layers a DeskHop switch clears"
+    depends on ZMK_DESKHOP_SYNC_REPORT
+    default 0x03
+    help
+      Every layer in this mask except the switch target is deactivated when
+      DeskHop changes output, so no base layer can shadow the one being
+      switched to. Layers outside the mask are untouched, which is what keeps
+      a held momentary layer (mouse/scroll/snipe) alive across a switch.
+
+      Defaults to layers 0 and 1, i.e. LAYER_A | LAYER_B. Add any other base
+      layer that must not survive a switch -- e.g. 0x07 to include a gaming
+      layer at index 2, which otherwise sits above both base layers and wins
+      key resolution regardless of which one is active.
+
 menuconfig ZMK_BLE
     bool "BLE (HID over GATT)"
     select BT
