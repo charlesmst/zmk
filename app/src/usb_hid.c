@@ -24,6 +24,10 @@
 
 #include <zmk/event_manager.h>
 
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+#include <zmk/events/deskhop_state_changed.h>
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 static const struct device *hid_dev;
@@ -119,6 +123,108 @@ static int get_report_cb(const struct device *dev, struct usb_setup_packet *setu
     return 0;
 }
 
+#if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+
+#define DESKHOP_SYNC_MAGIC 0xA5
+#define DESKHOP_SYNC_V1_LEN sizeof(struct zmk_hid_deskhop_sync_report)
+#define DESKHOP_SYNC_V2_LEN sizeof(struct zmk_hid_deskhop_sync_report_v2)
+
+BUILD_ASSERT(sizeof(struct zmk_hid_deskhop_sync_report_body_v2) == ZMK_HID_DESKHOP_SYNC_BODY_LEN,
+             "DeskHop sync descriptor REPORT_COUNT must match the v2 body");
+
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+static void deskhop_sync_apply_output(uint8_t output) {
+    // Clear every base layer except the one being switched to, then
+    // activate it. Not zmk_keymap_layer_to(): that tears down the
+    // whole stack and would drop any momentary layer the user is
+    // holding (mouse/scroll/snipe) mid-switch. Layers outside the
+    // base mask are deliberately left alone for that reason.
+    //
+    // Flipping only LAYER_A/LAYER_B is not enough: key resolution
+    // walks layers from the highest index down, so any other base
+    // layer that is still on -- a gaming layer above both of them --
+    // shadows the target and the switch appears to do nothing.
+    //
+    // The deactivate is forcing (locking = true) because &to and &tog
+    // both set the lock bit, and a non-forcing disable refuses to turn
+    // a locked layer off.
+    const bool want_b = output != 0;
+    const uint8_t target_layer =
+        want_b ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_B : CONFIG_ZMK_DESKHOP_SYNC_LAYER_A;
+    for (uint8_t layer = 0; layer < ZMK_KEYMAP_LAYERS_LEN; layer++) {
+        if (layer != target_layer && (CONFIG_ZMK_DESKHOP_SYNC_BASE_LAYER_MASK & BIT(layer))) {
+            zmk_keymap_layer_deactivate(layer, true);
+        }
+    }
+    zmk_keymap_layer_activate(target_layer, false);
+    LOG_INF("DeskHop sync output=%d -> layer=%d", output, target_layer);
+}
+
+static void deskhop_sync_raise_state(const struct zmk_hid_deskhop_sync_report_body_v2 *body) {
+    struct zmk_deskhop_state_changed ev = {
+        .active_output = body->active_output,
+        .gaming = (body->flags & ZMK_HID_DESKHOP_SYNC_FLAG_GAMING) != 0,
+        .relative = (body->flags & ZMK_HID_DESKHOP_SYNC_FLAG_RELATIVE) != 0,
+        .switch_lock = (body->flags & ZMK_HID_DESKHOP_SYNC_FLAG_SWITCH_LOCK) != 0,
+    };
+
+    for (uint8_t i = 0; i < ARRAY_SIZE(ev.outputs); i++) {
+        ev.outputs[i] = (struct zmk_deskhop_output_state){
+            .os = body->outputs[i].os,
+            .pos = body->outputs[i].pos,
+            .screen_count = body->outputs[i].screen_count,
+            .screen_index = body->outputs[i].screen_index,
+        };
+    }
+
+    raise_zmk_deskhop_state_changed(ev);
+}
+#endif
+
+static int deskhop_sync_set_report(const uint8_t *data, int32_t len) {
+    // v1 is exactly magic + output. v2 and anything later appends to it, so a
+    // longer report is read up to the v2 fields and the rest is ignored.
+    if (len != DESKHOP_SYNC_V1_LEN && len < DESKHOP_SYNC_V2_LEN) {
+        LOG_ERR("DeskHop sync report malformed: length=%d", len);
+        return -EINVAL;
+    }
+
+    const struct zmk_hid_deskhop_sync_report *dh = (const struct zmk_hid_deskhop_sync_report *)data;
+    if (dh->body.magic != DESKHOP_SYNC_MAGIC) {
+        LOG_WRN("DeskHop sync magic mismatch: 0x%02x", dh->body.magic);
+        return -EINVAL;
+    }
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+    return 0;
+#else
+    if (len == DESKHOP_SYNC_V1_LEN) {
+        // A v1 sender only reports on an output change, so every report is a
+        // switch.
+        deskhop_sync_apply_output(dh->body.output);
+        return 0;
+    }
+
+    // A v2 sender reports on every state change -- screen, gaming mode,
+    // monitor layout -- so most reports are not a switch at all. Applying the
+    // output every time would re-clear the base mask, which includes the
+    // gaming layer, and undo a layer toggled since the last real switch.
+    static int16_t applied_output = -1;
+    const struct zmk_hid_deskhop_sync_report_v2 *v2 =
+        (const struct zmk_hid_deskhop_sync_report_v2 *)data;
+
+    if (v2->body.output != applied_output) {
+        applied_output = v2->body.output;
+        deskhop_sync_apply_output(v2->body.output);
+    }
+
+    deskhop_sync_raise_state(&v2->body);
+    return 0;
+#endif
+}
+
+#endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
+
 static int set_report_cb(const struct device *dev, struct usb_setup_packet *setup, int32_t *len,
                          uint8_t **data) {
     switch (setup->wValue & HID_GET_REPORT_TYPE_MASK) {
@@ -142,46 +248,11 @@ static int set_report_cb(const struct device *dev, struct usb_setup_packet *setu
 #endif // IS_ENABLED(CONFIG_ZMK_POINTING_SMOOTH_SCROLLING)
 #if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
         case ZMK_HID_REPORT_ID_DESKHOP_SYNC: {
-            if (*len != sizeof(struct zmk_hid_deskhop_sync_report)) {
-                LOG_ERR("DeskHop sync report malformed: length=%d", *len);
-                return -EINVAL;
+            int err = deskhop_sync_set_report(*data, *len);
+            if (err < 0) {
+                return err;
             }
-            const struct zmk_hid_deskhop_sync_report *dh =
-                (const struct zmk_hid_deskhop_sync_report *)*data;
-            if (dh->body.magic != 0xA5) {
-                LOG_WRN("DeskHop sync magic mismatch: 0x%02x", dh->body.magic);
-                return -EINVAL;
-            }
-#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
             break;
-#else
-            // Clear every base layer except the one being switched to, then
-            // activate it. Not zmk_keymap_layer_to(): that tears down the
-            // whole stack and would drop any momentary layer the user is
-            // holding (mouse/scroll/snipe) mid-switch. Layers outside the
-            // base mask are deliberately left alone for that reason.
-            //
-            // Flipping only LAYER_A/LAYER_B is not enough: key resolution
-            // walks layers from the highest index down, so any other base
-            // layer that is still on -- a gaming layer above both of them --
-            // shadows the target and the switch appears to do nothing.
-            //
-            // The deactivate is forcing (locking = true) because &to and &tog
-            // both set the lock bit, and a non-forcing disable refuses to turn
-            // a locked layer off.
-            const bool want_b = dh->body.output != 0;
-            const uint8_t target_layer =
-                want_b ? CONFIG_ZMK_DESKHOP_SYNC_LAYER_B : CONFIG_ZMK_DESKHOP_SYNC_LAYER_A;
-            for (uint8_t layer = 0; layer < ZMK_KEYMAP_LAYERS_LEN; layer++) {
-                if (layer != target_layer &&
-                    (CONFIG_ZMK_DESKHOP_SYNC_BASE_LAYER_MASK & BIT(layer))) {
-                    zmk_keymap_layer_deactivate(layer, true);
-                }
-            }
-            zmk_keymap_layer_activate(target_layer, false);
-            LOG_INF("DeskHop sync output=%d -> layer=%d", dh->body.output, target_layer);
-            break;
-#endif
         }
 #endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
         default:
