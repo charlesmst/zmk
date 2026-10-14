@@ -164,6 +164,11 @@ config ZMK_DESKHOP_SYNC_REPORT
       to the existing keyboard interface so DeskHop hardware and host tools
       can signal the active output and ZMK will switch layers accordingly.
 
+      A v2 report also carries DeskHop's monitor layout, the screen the
+      pointer is on, and the gaming/relative/switch-lock flags. Each one is
+      raised as zmk_deskhop_state_changed for a display to draw, and only a
+      change of output switches layers.
+
 config ZMK_DESKHOP_SYNC_REPORT_ID
     hex "DeskHop sync report ID"
     depends on ZMK_DESKHOP_SYNC_REPORT

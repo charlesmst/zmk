@@ -78,6 +78,9 @@
 #define ZMK_HID_REPORT_ID_MOUSE 0x03
 #if IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
 #define ZMK_HID_REPORT_ID_DESKHOP_SYNC CONFIG_ZMK_DESKHOP_SYNC_REPORT_ID
+// Body length the descriptor declares, which is the v2 body. The set_report
+// handler still accepts the 2-byte v1 body from older DeskHop builds.
+#define ZMK_HID_DESKHOP_SYNC_BODY_LEN 13
 #endif
 
 #ifndef HID_ITEM_TAG_PUSH
@@ -178,7 +181,7 @@ static const uint8_t zmk_hid_report_desc[] = {
     HID_LOGICAL_MIN8(0x00),
     HID_LOGICAL_MAX8(0xFF),
     HID_REPORT_SIZE(0x08),
-    HID_REPORT_COUNT(0x02),
+    HID_REPORT_COUNT(ZMK_HID_DESKHOP_SYNC_BODY_LEN),
     HID_FEATURE(ZMK_HID_MAIN_VAL_DATA | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
     HID_END_COLLECTION,
 #endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
@@ -423,5 +426,34 @@ struct zmk_hid_deskhop_sync_report_body {
 struct zmk_hid_deskhop_sync_report {
     uint8_t report_id;
     struct zmk_hid_deskhop_sync_report_body body;
+} __packed;
+
+// One DeskHop output as DeskHop describes it. os and pos carry DeskHop's own
+// enum values (see zmk/events/deskhop_state_changed.h).
+struct zmk_hid_deskhop_sync_output {
+    uint8_t os;
+    uint8_t pos;
+    uint8_t screen_count;
+    uint8_t screen_index;
+} __packed;
+
+#define ZMK_HID_DESKHOP_SYNC_FLAG_GAMING BIT(0)
+#define ZMK_HID_DESKHOP_SYNC_FLAG_RELATIVE BIT(1)
+#define ZMK_HID_DESKHOP_SYNC_FLAG_SWITCH_LOCK BIT(2)
+
+// v2 extends the v1 body in place: magic and output keep their offsets and
+// their meaning, so output is still the layer-mapped A/B selector.
+struct zmk_hid_deskhop_sync_report_body_v2 {
+    uint8_t magic;
+    uint8_t output;
+    uint8_t version;
+    uint8_t flags;
+    uint8_t active_output; // raw DeskHop output, 0 = A, 1 = B
+    struct zmk_hid_deskhop_sync_output outputs[2];
+} __packed;
+
+struct zmk_hid_deskhop_sync_report_v2 {
+    uint8_t report_id;
+    struct zmk_hid_deskhop_sync_report_body_v2 body;
 } __packed;
 #endif // IS_ENABLED(CONFIG_ZMK_DESKHOP_SYNC_REPORT)
